@@ -1,58 +1,67 @@
 import streamlit as st
 import pickle
 import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
 
-# Load the trained ML model
+# Load the saved data (vectorizer + dataframe)
 def load_model():
     with open("recommendation_model.pkl", "rb") as file:
-        model = pickle.load(file)
-    return model
+        model_data = pickle.load(file)
+    return model_data["tfidf_vectorizer"], model_data["df_final"]
 
-# Function to make predictions based on user input
-def predict_hotel(model, roomtype, country, city, propertytype):
-    # Create a dataframe with user input
-    input_data = pd.DataFrame({
-        'RoomType': [roomtype],
-        'Country': [country],
-        'City': [city],
-        'PropertyType': [propertytype]
-    })
-    
-    # Make a prediction using the loaded model
-    prediction = model.predict(input_data)
-    return prediction[0]
+# Recommendation function
+def recommend(tfidf_loaded, df_final_loaded, roomtype, country, city, propertytype):
+    filtered_df = df_final_loaded[
+        (df_final_loaded['roomtype'] == roomtype) &
+        (df_final_loaded['country'] == country) &
+        (df_final_loaded['city'] == city) &
+        (df_final_loaded['propertytype'] == propertytype)
+    ]
 
+    temp = df_final_loaded[
+        (df_final_loaded['country'] == country) &
+        (df_final_loaded['city'] == city)
+    ]
+
+    if temp.empty or filtered_df.empty:
+        return []
+
+    idx1 = filtered_df['index'].tolist()
+    temp.reset_index(inplace=True)
+    idx2 = temp[temp['index'].isin(idx1)].index.tolist()
+
+    # ✅ use transform instead of fit_transform
+    vector = tfidf_loaded.transform(temp['tags']).toarray()
+    similarity = cosine_similarity(vector)
+
+    hotels = []
+    for i in idx2:
+        similar_hotels = sorted(list(enumerate(similarity[i])), key=lambda x: x[1], reverse=True)[0:5]
+        for hotel in similar_hotels:
+            hotels.append(tuple(temp.loc[hotel[0]][['hotelname', 'roomtype']]))
+    return hotels
+
+
+# Streamlit app
 def app():
     st.title("🏨 Hotel Recommendation System")
 
-    st.markdown(
-        """
-        <style>
-            .header {
-                color: #ff5733;
-                font-size: 36px;
-                font-weight: bold;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # Input fields for hotel search
     st.subheader("Find the best hotel for your stay!")
-    roomtype = st.selectbox("Room Type", ["Single", "Double", "Suite", "Deluxe"])
-    country = st.text_input("Country (e.g., USA)")
-    city = st.text_input("City (e.g., New York)")
-    propertytype = st.selectbox("Property Type", ["Hotel", "Hostel", "Guest House", "Apartment"])
+    roomtype = st.text_input("Room Type (e.g., Comfort Single Room)")
+    country = st.text_input("Country (e.g., Germany)")
+    city = st.text_input("City (e.g., Munich)")
+    propertytype = st.text_input("Property Type (e.g., Hotels)")
 
-    # Button to submit and get recommendations
     if st.button("Get Hotel Recommendation"):
         if roomtype and country and city and propertytype:
-            model = load_model()  # Load the saved model
-            recommendation = predict_hotel(model, roomtype, country, city, propertytype)
-            
-            st.write(f"### Recommended Hotel: {recommendation}")
+            tfidf_loaded, df_final_loaded = load_model()
+            recommendations = recommend(tfidf_loaded, df_final_loaded, roomtype, country, city, propertytype)
+
+            if recommendations:
+                st.write("### Recommended Hotels:")
+                for hotel in recommendations:
+                    st.write(f"- {hotel[0]} ({hotel[1]})")
+            else:
+                st.write("No hotels found for the given criteria.")
         else:
             st.write("Please fill in all fields to get a hotel recommendation.")
-
-# You can add the module to your main.py by calling Hotel.app() in the sidebar options

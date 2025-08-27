@@ -7,8 +7,10 @@ import json
 import requests
 
 
-cred = credentials.Certificate("travel-itinerary-generat-ecb98-0f24227a69a4.json")
-firebase_admin.initialize_app(cred)
+cred = credentials.Certificate("travel-itinerary-generat-b2f2a-firebase-adminsdk-fbsvc-a378f855dc.json")
+
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
 
 def app():
 # Usernm = []

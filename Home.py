@@ -1,20 +1,24 @@
 import os
 import streamlit as st
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 
 # Load environment variables
 load_dotenv()
 
-# Function to configure the Google API
-def configure_gemini_api():
-    genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+client = genai.Client(api_key="AIzaSyDS69TwiF1H-Pw5OX-qWDHawQhdfdNNskw")
 
-# Function to generate content using Google Gemini for each prompt
+
 def generate_content(prompt):
-    model = genai.GenerativeModel("gemini-pro")
-    response = model.generate_content(prompt)
-    return response.text
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+    if response.candidates:
+        return response.candidates[0].content.parts[0].text
+    else:
+        return "⚠️ No response from model."
+
 
 def app():
     st.title("🌍 Personalized Travel Itinerary Generator ✈️")
@@ -74,4 +78,4 @@ def app():
         st.write(travel_tips)
 
 # Ensure to call the configure function when starting the app
-configure_gemini_api()
+# configure_gemini_api()
